@@ -4,7 +4,8 @@ Passively reads temperature, humidity, and battery from
 **SwitchBot Indoor/Outdoor Thermo-Hygrometer (Model W3400010)** over BLE on Linux.
 No pairing. No official app. No cloud.
 
-![Web UI showing live temperature and humidity charts per device](docs/screenshot.png)
+![SwitchBot W3400010 Indoor/Outdoor Thermo-Hygrometer — front and back](docs/sensor.jpg)
+<sub>Image: smarthomescene.com</sub>
 
 ---
 
