@@ -2,7 +2,18 @@
 set -euo pipefail
 
 PROJ_DIR="$(cd "$(dirname "$0")" && pwd)"
-VERSION="${1:-$(date +%Y%m%d)}"
+
+# Parse args: first non-flag arg is version, --publish triggers GH release
+VERSION=""
+PUBLISH=0
+for arg in "$@"; do
+  case "$arg" in
+    --publish) PUBLISH=1 ;;
+    *)         [[ -z "$VERSION" ]] && VERSION="$arg" ;;
+  esac
+done
+VERSION="${VERSION:-$(date +%Y%m%d)}"
+
 PKG_NAME="switchbot-temp-${VERSION}"
 STAGE_DIR="${PROJ_DIR}/_release/${PKG_NAME}"
 INSTALL_DIR="/opt/switchbot-temp"
@@ -111,3 +122,23 @@ done
 echo ""
 echo "Contents (full bundle):"
 tar tzf "${PKG_NAME}.tar.gz"
+
+# ── GitHub release ────────────────────────────────────────────
+if [[ "$PUBLISH" -eq 1 ]]; then
+  cd "$PROJ_DIR"
+  echo ""
+  echo "==> Tagging ${VERSION}..."
+  git tag -a "${VERSION}" -m "Release ${VERSION}"
+  git push origin "${VERSION}"
+
+  echo "==> Creating GitHub release ${VERSION}..."
+  gh release create "${VERSION}" \
+    "_release/${PKG_NAME}.tar.gz" \
+    "_release/${PKG_NAME}-linux-amd64.tar.gz" \
+    "_release/${PKG_NAME}-linux-armv7l.tar.gz" \
+    --title "${VERSION}" \
+    --generate-notes
+  echo ""
+  echo "Release published:"
+  gh release view "${VERSION}" --json url -q .url
+fi
