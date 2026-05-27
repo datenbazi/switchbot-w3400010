@@ -1,0 +1,8 @@
+switchbot-temp
+switchbot-temp-armv7l
+switchbot.db
+switchbot.db-shm
+switchbot.db-wal
+switchbot-temp.log
+switchbot-temp.pid
+_release/

@@ -1,0 +1,26 @@
+[Unit]
+Description=SwitchBot W3400010 BLE thermometer scanner
+After=bluetooth.target network.target
+Wants=bluetooth.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/andy/data/SwitchBotReverse
+
+# Ensure BT is unblocked and adapter is up before starting
+ExecStartPre=/bin/bash -c 'rfkill unblock bluetooth; hciconfig hci0 up; sleep 1'
+
+ExecStart=/home/andy/data/SwitchBotReverse/switchbot-temp \
+  -db      /home/andy/data/SwitchBotReverse/switchbot.db \
+  -listen  :7700 \
+  -store-every 5m \
+  -alerts  /home/andy/data/SwitchBotReverse/alerts.json
+
+Restart=always
+RestartSec=5
+
+StandardOutput=append:/home/andy/data/SwitchBotReverse/switchbot-temp.log
+StandardError=append:/home/andy/data/SwitchBotReverse/switchbot-temp.log
+
+[Install]
+WantedBy=multi-user.target

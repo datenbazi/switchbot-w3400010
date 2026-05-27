@@ -1,0 +1,42 @@
+{
+  "telegram_bot_token": "",
+  "telegram_chat_id": "",
+  "rules": [
+    {
+      "name": "Too Hot (any device)",
+      "device": "*",
+      "metric": "temperature_c",
+      "condition": "above",
+      "threshold": 32,
+      "for": "5m",
+      "cooldown": "30m"
+    },
+    {
+      "name": "Too Cold (any device)",
+      "device": "*",
+      "metric": "temperature_c",
+      "condition": "below",
+      "threshold": 16,
+      "for": "5m",
+      "cooldown": "30m"
+    },
+    {
+      "name": "High Humidity (any device)",
+      "device": "*",
+      "metric": "humidity_pct",
+      "condition": "above",
+      "threshold": 70,
+      "for": "10m",
+      "cooldown": "60m"
+    },
+    {
+      "name": "Low Humidity (any device)",
+      "device": "*",
+      "metric": "humidity_pct",
+      "condition": "below",
+      "threshold": 25,
+      "for": "10m",
+      "cooldown": "60m"
+    }
+  ]
+}

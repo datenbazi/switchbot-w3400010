@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SwitchBot Monitor</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:       #07090f;
+  --surface:  #0e1117;
+  --surface2: #161b27;
+  --border:   rgba(255,255,255,.07);
+  --text:     #e6edf3;
+  --muted:    #7d8590;
+  --cyan:     #39d0d8;
+  --orange:   #ff7043;
+  --green:    #3fb950;
+  --red:      #f85149;
+  --blue:     #58a6ff;
+  --purple:   #bc8cff;
+
+  /* per-device accent — indexed 0..7 */
+  --d0: #39d0d8;
+  --d1: #ff7043;
+  --d2: #3fb950;
+  --d3: #bc8cff;
+  --d4: #ffa657;
+  --d5: #ff79c6;
+  --d6: #8be9fd;
+  --d7: #f1fa8c;
+}
+
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+}
+
+/* ── header ── */
+header{
+  background:rgba(14,17,23,.85);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  padding:0 28px;
+  height:54px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  position:sticky;
+  top:0;
+  z-index:20;
+}
+.hdr-left{display:flex;align-items:center;gap:12px}
+header h1{font-size:16px;font-weight:700;letter-spacing:.5px;color:var(--cyan);text-transform:uppercase}
+#device-count{
+  font-size:11px;font-weight:600;padding:2px 9px;
+  border-radius:99px;background:rgba(57,208,216,.12);
+  color:var(--cyan);border:1px solid rgba(57,208,216,.25);
+}
+.hdr-right{display:flex;align-items:center;gap:14px;font-size:13px;color:var(--muted)}
+#status-dot{
+  width:8px;height:8px;border-radius:50%;background:var(--muted);
+  box-shadow:0 0 0 0 transparent;
+  transition:background .4s,box-shadow .4s;
+}
+#status-dot.live{
+  background:var(--green);
+  animation:pulse-dot 2s ease-in-out infinite;
+}
+#status-dot.error{background:var(--red)}
+@keyframes pulse-dot{
+  0%,100%{box-shadow:0 0 0 0 rgba(63,185,80,.5)}
+  50%    {box-shadow:0 0 0 5px rgba(63,185,80,0)}
+}
+
+/* ── privacy toggle ── */
+.privacy-toggle{
+  display:flex;align-items:center;gap:7px;
+  cursor:pointer;user-select:none;
+}
+.privacy-toggle input{display:none}
+.privacy-slider{
+  width:32px;height:18px;border-radius:9px;
+  background:var(--surface2);border:1px solid var(--border);
+  position:relative;transition:background .2s,border-color .2s;
+  flex-shrink:0;
+}
+.privacy-slider::after{
+  content:'';position:absolute;top:2px;left:2px;
+  width:12px;height:12px;border-radius:50%;
+  background:var(--muted);transition:transform .2s,background .2s;
+}
+.privacy-toggle input:checked + .privacy-slider{
+  background:rgba(57,208,216,.15);
+  border-color:rgba(57,208,216,.4);
+}
+.privacy-toggle input:checked + .privacy-slider::after{
+  transform:translateX(14px);
+  background:var(--cyan);
+}
+.privacy-label{font-size:12px;color:var(--muted);transition:color .15s}
+.privacy-toggle:hover .privacy-label{color:var(--text)}
+
+/* ── layout ── */
+main{padding:24px 28px;max-width:1300px;margin:0 auto}
+
+/* ── device cards ── */
+#cards{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+  gap:16px;
+  margin-bottom:32px;
+}
+.card{
+  background:var(--surface);
+  border-radius:16px;
+  border:1px solid var(--border);
+  padding:22px 24px 18px;
+  position:relative;
+  overflow:hidden;
+  transition:border-color .3s,box-shadow .3s;
+}
+/* glowing accent strip on left */
+.card::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+  border-radius:3px 0 0 3px;
+  background:var(--accent,var(--cyan));
+  box-shadow:0 0 12px var(--accent,var(--cyan));
+}
+.card:hover{box-shadow:0 0 0 1px var(--accent,var(--cyan)),0 8px 32px rgba(0,0,0,.4)}
+
+.card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px}
+.card-mac{font-size:11px;font-family:monospace;letter-spacing:.5px}
+.card-signals{display:flex;align-items:center;gap:8px}
+
+/* RSSI bars */
+.signal-bars{display:flex;align-items:flex-end;gap:2px;height:14px}
+.signal-bars span{
+  display:block;width:3px;border-radius:1px;
+  background:rgba(255,255,255,.15);
+  transition:background .3s;
+}
+.signal-bars span:nth-child(1){height:4px}
+.signal-bars span:nth-child(2){height:7px}
+.signal-bars span:nth-child(3){height:10px}
+.signal-bars span:nth-child(4){height:14px}
+.signal-bars.sig-1 span:nth-child(1){background:var(--red)}
+.signal-bars.sig-2 span:nth-child(1),.signal-bars.sig-2 span:nth-child(2){background:var(--orange)}
+.signal-bars.sig-3 span:nth-child(1),.signal-bars.sig-3 span:nth-child(2),.signal-bars.sig-3 span:nth-child(3){background:var(--cyan)}
+.signal-bars.sig-4 span{background:var(--green)}
+
+.card-bat-badge{
+  font-size:11px;font-weight:600;
+  padding:1px 7px;border-radius:99px;
+  border:1px solid rgba(255,255,255,.1);
+  color:var(--muted);
+}
+.card-bat-badge.high  {color:var(--green);border-color:rgba(63,185,80,.3)}
+.card-bat-badge.medium{color:var(--orange);border-color:rgba(255,112,67,.3)}
+.card-bat-badge.low   {color:var(--red);  border-color:rgba(248,81,73,.3)}
+
+/* big number */
+.card-main{display:flex;align-items:flex-end;gap:20px;margin-bottom:16px}
+.card-temp-wrap{}
+.card-temp{
+  font-size:64px;font-weight:800;line-height:1;letter-spacing:-3px;
+  transition:color .5s;
+}
+.card-temp.cold {color:#60a5fa}
+.card-temp.cool {color:#22d3ee}
+.card-temp.comfy{color:#4ade80}
+.card-temp.warm {color:#fb923c}
+.card-temp.hot  {color:#f87171}
+.card-temp-unit{font-size:24px;font-weight:400;opacity:.6;margin-left:2px;vertical-align:top;margin-top:10px;display:inline-block}
+
+/* humidity bar */
+.card-hum-wrap{flex:1;padding-bottom:6px}
+.card-hum-label{font-size:11px;color:var(--muted);margin-bottom:4px;display:flex;justify-content:space-between}
+.card-hum-val{font-size:22px;font-weight:700;color:var(--cyan);margin-bottom:6px}
+.hum-track{height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden}
+.hum-fill{height:100%;border-radius:2px;background:var(--cyan);transition:width .6s cubic-bezier(.4,0,.2,1)}
+
+.card-footer{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+
+/* ── section header ── */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.section-title{font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)}
+
+.range-btns{display:flex;gap:6px}
+.range-btns button{
+  padding:5px 14px;border-radius:8px;
+  border:1px solid var(--border);
+  background:var(--surface2);
+  color:var(--muted);
+  font-size:12px;font-weight:600;
+  cursor:pointer;transition:all .15s;letter-spacing:.3px;
+}
+.range-btns button:hover{border-color:rgba(255,255,255,.2);color:var(--text)}
+.range-btns button.active{background:rgba(57,208,216,.15);color:var(--cyan);border-color:rgba(57,208,216,.4)}
+
+/* ── charts ── */
+#charts{display:flex;flex-direction:column;gap:16px;margin-bottom:32px}
+.chart-card{
+  background:var(--surface);
+  border-radius:16px;
+  border:1px solid var(--border);
+  padding:18px 20px 14px;
+}
+.chart-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.chart-addr{font-size:12px;font-family:monospace;font-weight:700}
+.chart-live-vals{display:flex;gap:16px;font-size:12px;color:var(--muted)}
+.chart-live-temp{font-weight:700}
+.chart-live-hum {font-weight:700;color:var(--cyan)}
+.chart-wrap{position:relative;height:180px}
+#empty{text-align:center;padding:60px 0;color:var(--muted);font-size:14px}
+
+/* ── export ── */
+#export-section{max-width:1300px;margin:0 auto;padding:0 28px 32px}
+.export-form{
+  background:var(--surface);border-radius:12px;
+  border:1px solid var(--border);
+  padding:18px 20px;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;
+}
+.export-field{display:flex;flex-direction:column;gap:5px}
+.export-field label{font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.4px;text-transform:uppercase}
+.export-field input,.export-field select{
+  background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);border-radius:8px;padding:7px 10px;font-size:12px;
+  font-family:inherit;outline:none;
+}
+.export-field input:focus,.export-field select:focus{border-color:rgba(57,208,216,.4)}
+.export-field input[type=datetime-local]::-webkit-calendar-picker-indicator{filter:invert(.5)}
+.export-btn{
+  padding:8px 18px;border-radius:8px;border:none;cursor:pointer;
+  font-size:12px;font-weight:700;letter-spacing:.3px;
+  transition:all .15s;
+}
+.export-btn.primary{background:rgba(57,208,216,.18);color:var(--cyan);border:1px solid rgba(57,208,216,.35)}
+.export-btn.primary:hover{background:rgba(57,208,216,.28)}
+.export-btn.secondary{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+.export-btn.secondary:hover{color:var(--text)}
+#export-count{font-size:11px;color:var(--muted);align-self:flex-end;padding-bottom:9px}
+
+#export-preview-wrap{margin-top:12px}
+#export-preview{
+  background:#090d12;border-radius:10px;border:1px solid var(--border);
+  overflow:auto;max-height:300px;
+  font-family:"JetBrains Mono","Fira Code",ui-monospace,monospace;
+  font-size:11px;
+}
+#export-preview table{width:100%;border-collapse:collapse}
+#export-preview th{
+  position:sticky;top:0;background:#0c1018;
+  padding:7px 14px;text-align:left;color:var(--muted);
+  font-size:10px;text-transform:uppercase;letter-spacing:.5px;
+  border-bottom:1px solid var(--border);white-space:nowrap;
+}
+#export-preview td{
+  padding:5px 14px;border-bottom:1px solid rgba(255,255,255,.03);
+  color:var(--text);white-space:nowrap;
+}
+#export-preview tr:last-child td{border-bottom:none}
+#export-preview td.addr{font-family:monospace;color:var(--muted)}
+#export-preview td.temp{color:var(--orange)}
+#export-preview td.hum {color:var(--cyan)}
+#export-preview .preview-status{padding:20px;text-align:center;color:var(--muted);font-size:12px}
+
+/* ── alerts ── */
+#alerts-section{max-width:1300px;margin:0 auto;padding:0 28px 32px}
+#alerts-list{display:flex;flex-direction:column;gap:8px}
+.alert-row{
+  display:flex;align-items:center;gap:14px;
+  background:var(--surface);border-radius:12px;
+  border:1px solid var(--border);
+  padding:12px 18px;font-size:12px;
+  transition:border-color .3s;
+}
+.alert-row.is-active{border-color:rgba(248,81,73,.4);background:rgba(248,81,73,.04)}
+.alert-row.is-pending{border-color:rgba(255,166,87,.35);background:rgba(255,166,87,.04)}
+.alert-status-dot{
+  width:9px;height:9px;border-radius:50%;flex-shrink:0;
+  background:var(--muted);
+}
+.is-active  .alert-status-dot{background:var(--red);box-shadow:0 0 8px var(--red);animation:pulse-dot 1.5s ease-in-out infinite}
+.is-pending .alert-status-dot{background:var(--orange)}
+.alert-name{font-weight:700;color:var(--text);min-width:160px}
+.alert-device{font-family:monospace;color:var(--muted);min-width:130px}
+.alert-rule{color:var(--muted);flex:1}
+.alert-rule b{color:var(--text)}
+.alert-state{text-align:right;white-space:nowrap}
+.alert-state.ok     {color:var(--green)}
+.alert-state.active {color:var(--red);font-weight:700}
+.alert-state.pending{color:var(--orange)}
+.alert-fired{font-size:11px;color:var(--muted);text-align:right;white-space:nowrap;min-width:120px}
+#alerts-empty-msg{font-size:13px;color:var(--muted);padding:12px 0}
+#alert-badge{
+  display:inline-block;font-size:10px;font-weight:700;
+  padding:1px 7px;border-radius:99px;margin-left:8px;
+  background:rgba(248,81,73,.2);color:var(--red);
+  border:1px solid rgba(248,81,73,.4);
+}
+
+/* ── log ── */
+#log-section{max-width:1300px;margin:0 auto;padding:0 28px 40px}
+#log-body{
+  background:#090d12;
+  border-radius:12px;
+  border:1px solid var(--border);
+  height:240px;overflow-y:auto;
+  padding:10px 14px;
+  font-family:"JetBrains Mono","Fira Code",ui-monospace,monospace;
+  font-size:11.5px;line-height:1.8;
+}
+#log-body::-webkit-scrollbar{width:4px}
+#log-body::-webkit-scrollbar-thumb{background:#2d333b;border-radius:2px}
+.log-entry{display:flex;gap:10px;white-space:nowrap}
+.log-ts  {color:#3d444d;min-width:86px}
+.log-addr{min-width:122px;font-weight:700}
+.log-temp{min-width:64px}
+.log-hum {color:var(--cyan);min-width:52px}
+.log-bat {color:var(--green);min-width:52px}
+.log-rssi{color:#3d444d}
+.log-controls{display:flex;gap:8px;align-items:center}
+.log-controls button{
+  padding:4px 12px;border-radius:6px;border:1px solid var(--border);
+  background:var(--surface2);color:var(--muted);
+  font-size:11px;font-weight:600;cursor:pointer;letter-spacing:.3px;
+}
+.log-controls button:hover{color:var(--text)}
+.log-controls button.active{color:var(--orange);border-color:rgba(255,112,67,.4)}
+
+/* per-device colours */
+.d0{color:var(--d0)}.d1{color:var(--d1)}.d2{color:var(--d2)}.d3{color:var(--d3)}
+.d4{color:var(--d4)}.d5{color:var(--d5)}.d6{color:var(--d6)}.d7{color:var(--d7)}
+
+/* ── toast ── */
+#toast-wrap{
+  position:fixed;bottom:24px;right:24px;z-index:100;
+  display:flex;flex-direction:column;gap:8px;align-items:flex-end;
+}
+.toast{
+  background:var(--surface2);border:1px solid rgba(57,208,216,.4);
+  color:var(--text);border-radius:12px;padding:12px 18px;
+  font-size:13px;box-shadow:0 4px 24px rgba(0,0,0,.5);
+  display:flex;align-items:center;gap:10px;
+  animation:toast-in .3s cubic-bezier(.2,0,.2,1);
+  max-width:320px;
+}
+.toast-icon{font-size:16px}
+.toast-body{}
+.toast-title{font-weight:700;color:var(--cyan);margin-bottom:2px;font-size:12px;text-transform:uppercase;letter-spacing:.4px}
+.toast-msg{color:var(--muted);font-size:12px;font-family:monospace}
+@keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hdr-left">
+    <h1>SwitchBot Monitor</h1>
+    <span id="device-count">0 devices</span>
+  </div>
+  <div class="hdr-right">
+    <label class="privacy-toggle" title="Hide Bluetooth MAC addresses">
+      <input type="checkbox" id="privacy-chk">
+      <span class="privacy-slider"></span>
+      <span class="privacy-label">Redact MACs</span>
+    </label>
+    <div id="status-dot"></div>
+    <span id="status-text">connecting…</span>
+  </div>
+</header>
+
+<main>
+  <div id="cards"></div>
+
+  <div class="section-header">
+    <span class="section-title">Temperature &amp; Humidity</span>
+    <div class="range-btns" id="range-btns">
+      <button data-h="0.083">5m</button>
+      <button data-h="0.25">15m</button>
+      <button data-h="1" class="active">1h</button>
+      <button data-h="6">6h</button>
+      <button data-h="24">24h</button>
+      <button data-h="168">7d</button>
+    </div>
+  </div>
+  <div id="charts"><div id="empty">Waiting for devices…</div></div>
+</main>
+
+<div id="export-section">
+  <div class="section-header">
+    <span class="section-title">Export &amp; Query</span>
+  </div>
+  <div class="export-form">
+    <div class="export-field">
+      <label>From</label>
+      <input type="datetime-local" id="exp-from">
+    </div>
+    <div class="export-field">
+      <label>To</label>
+      <input type="datetime-local" id="exp-to">
+    </div>
+    <div class="export-field">
+      <label>Device</label>
+      <select id="exp-device">
+        <option value="">All devices</option>
+      </select>
+    </div>
+    <div class="export-field">
+      <label>Format</label>
+      <select id="exp-format">
+        <option value="csv">CSV</option>
+        <option value="json">JSON</option>
+      </select>
+    </div>
+    <button class="export-btn secondary" onclick="previewExport()">Preview</button>
+    <button class="export-btn primary" onclick="downloadExport()">&#8595; Download</button>
+    <span id="export-count"></span>
+  </div>
+  <div id="export-preview-wrap" style="display:none">
+    <div id="export-preview"></div>
+  </div>
+</div>
+
+<div id="alerts-section">
+  <div class="section-header">
+    <span class="section-title">Alert Rules <span id="alert-badge" style="display:none"></span></span>
+    <span id="alerts-no-config" style="font-size:12px;color:var(--muted);display:none">No alert config loaded</span>
+  </div>
+  <div id="alerts-list"><div id="alerts-empty-msg">Loading…</div></div>
+</div>
+
+<div id="toast-wrap"></div>
+
+<div id="log-section">
+  <div class="section-header">
+    <span class="section-title">Live Log</span>
+    <div class="log-controls">
+      <button id="log-pause">Pause</button>
+      <button id="log-clear">Clear</button>
+    </div>
+  </div>
+  <div id="log-body"></div>
+</div>
+
+<script>
+// ── constants ───────────────────────────────────────────────
+const DEV_COLORS   = ['#39d0d8','#ff7043','#3fb950','#bc8cff','#ffa657','#ff79c6','#8be9fd','#f1fa8c'];
+const CHART_UPDATE_MS = 250;   // x-axis slide interval
+const LOG_MAX         = 600;
+
+// ── state ────────────────────────────────────────────────────
+let   currentH   = 1;           // selected hours
+const charts     = {};          // addr → Chart
+const addrIdx    = {};          // addr → colour index
+const lastReading= {};          // addr → latest reading
+let   logPaused  = false;
+let   logCount   = 0;
+let   privacyMode = localStorage.getItem('privacy') === '1';
+
+// ── helpers ──────────────────────────────────────────────────
+function devColor(addr) {
+  if (!(addr in addrIdx)) addrIdx[addr] = Object.keys(addrIdx).length % 8;
+  return DEV_COLORS[addrIdx[addr]];
+}
+function devClass(addr) {
+  if (!(addr in addrIdx)) addrIdx[addr] = Object.keys(addrIdx).length % 8;
+  return 'd' + addrIdx[addr];
+}
+function tempClass(t) {
+  return t < 0 ? 'cold' : t < 16 ? 'cool' : t < 26 ? 'comfy' : t < 30 ? 'warm' : 'hot';
+}
+function batClass(b) {
+  return b < 0 ? '' : b >= 50 ? 'high' : b >= 20 ? 'medium' : 'low';
+}
+function sigClass(rssi) {
+  return rssi >= -55 ? 'sig-4' : rssi >= -65 ? 'sig-3' : rssi >= -75 ? 'sig-2' : 'sig-1';
+}
+function fmtBat(b)   { return b >= 0 ? b + '%' : 'n/a'; }
+function fmtAgo(iso) {
+  const sec = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+  return sec < 5 ? 'just now' : sec < 60 ? sec + 's ago' : Math.round(sec/60) + 'm ago';
+}
+
+// Returns the display string for a MAC address, respecting privacy mode.
+// In privacy mode, full MACs become "Device N"; "*" and unknown addresses
+// are left as-is so alert rules still make sense.
+function fmtAddr(addr) {
+  if (!privacyMode || addr === '*') return addr;
+  if (!(addr in addrIdx)) return 'Device ?';
+  return 'Device ' + (addrIdx[addr] + 1);
+}
+
+// Re-renders every address-bearing element already in the DOM.
+// Called whenever privacyMode is toggled.
+function refreshAddressDisplay() {
+  document.querySelectorAll('.mac-display[data-addr]').forEach(el => {
+    el.textContent = fmtAddr(el.dataset.addr);
+  });
+  // Export device dropdown — value stays as real MAC, label updates
+  document.querySelectorAll('#exp-device option[data-addr]').forEach(opt => {
+    opt.textContent = fmtAddr(opt.dataset.addr);
+  });
+}
+
+// ── privacy toggle wiring ─────────────────────────────────────
+(function() {
+  const chk = document.getElementById('privacy-chk');
+  chk.checked = privacyMode;
+  chk.addEventListener('change', function() {
+    privacyMode = this.checked;
+    localStorage.setItem('privacy', privacyMode ? '1' : '0');
+    refreshAddressDisplay();
+  });
+})();
+
+// ── cards ─────────────────────────────────────────────────────
+function upsertCard(r) {
+  const key = r.address.replace(/:/g,'');
+  let card  = document.getElementById('card-'+key);
+
+  if (!card) {
+    card = document.createElement('div');
+    card.className = 'card';
+    card.id = 'card-'+key;
+    card.style.setProperty('--accent', devColor(r.address));
+    card.innerHTML = `
+      <div class="card-top">
+        <div class="card-mac mac-display ${devClass(r.address)}" data-addr="${r.address}">${fmtAddr(r.address)}</div>
+        <div class="card-signals">
+          <div class="signal-bars" id="sig-${key}"><span></span><span></span><span></span><span></span></div>
+          <div class="card-bat-badge" id="bat-${key}"></div>
+        </div>
+      </div>
+      <div class="card-main">
+        <div class="card-temp-wrap">
+          <div class="card-temp" id="temp-${key}"><span id="tv-${key}"></span><span class="card-temp-unit">°C</span></div>
+        </div>
+        <div class="card-hum-wrap">
+          <div class="card-hum-label"><span>Humidity</span><span id="hv-${key}"></span></div>
+          <div class="hum-track"><div class="hum-fill" id="hf-${key}"></div></div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <span id="ct-${key}"></span>
+        <span id="cr-${key}"></span>
+      </div>`;
+    document.getElementById('cards').appendChild(card);
+    document.getElementById('device-count').textContent =
+      Object.keys(addrIdx).length + ' device' + (Object.keys(addrIdx).length === 1 ? '' : 's');
+  }
+
+  document.getElementById('temp-'+key).className = 'card-temp ' + tempClass(r.temperature_c);
+  document.getElementById('tv-'+key).textContent  = r.temperature_c.toFixed(1);
+  document.getElementById('hv-'+key).textContent  = r.humidity_pct + '%';
+  document.getElementById('hf-'+key).style.width  = r.humidity_pct + '%';
+  const bat = document.getElementById('bat-'+key);
+  bat.textContent = fmtBat(r.battery_pct) + ' ⚡';
+  bat.className   = 'card-bat-badge ' + batClass(r.battery_pct);
+  document.getElementById('sig-'+key).className = 'signal-bars ' + sigClass(r.rssi);
+  document.getElementById('cr-'+key).textContent = r.rssi + ' dBm';
+}
+
+// Tick "N ago" every second without SSE involvement
+setInterval(() => {
+  Object.entries(lastReading).forEach(([addr, r]) => {
+    const key = addr.replace(/:/g,'');
+    const el  = document.getElementById('ct-'+key);
+    if (el) el.textContent = fmtAgo(r.time);
+  });
+}, 1000);
+
+// ── charts ────────────────────────────────────────────────────
+function ensureChart(addr) {
+  if (charts[addr]) return;
+  document.getElementById('empty').style.display = 'none';
+  const color = devColor(addr);
+  const hum   = '#39d0d8';
+
+  const wrap = document.createElement('div');
+  wrap.className = 'chart-card';
+  wrap.innerHTML = `
+    <div class="chart-card-header">
+      <span class="chart-addr mac-display ${devClass(addr)}" data-addr="${addr}">${fmtAddr(addr)}</span>
+      <div class="chart-live-vals">
+        <span class="chart-live-temp" id="cltemp-${addr.replace(/:/g,'')}">—°C</span>
+        <span class="chart-live-hum"  id="clhum-${addr.replace(/:/g,'')}">—% RH</span>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="cv-${addr.replace(/:/g,'')}"></canvas></div>`;
+  document.getElementById('charts').appendChild(wrap);
+
+  const ctx = wrap.querySelector('canvas').getContext('2d');
+
+  // gradient fills
+  const tGrad = ctx.createLinearGradient(0,0,0,180);
+  tGrad.addColorStop(0, color + '55');
+  tGrad.addColorStop(1, color + '00');
+  const hGrad = ctx.createLinearGradient(0,0,0,180);
+  hGrad.addColorStop(0, hum + '44');
+  hGrad.addColorStop(1, hum + '00');
+
+  charts[addr] = new Chart(ctx, {
+    type:'line',
+    data:{
+      datasets:[
+        { label:'Temp (°C)',   data:[], yAxisID:'yT',
+          borderColor:color, backgroundColor:tGrad,
+          borderWidth:2, pointRadius:0, pointHoverRadius:5,
+          fill:true, tension:0.4 },
+        { label:'Humidity (%)',data:[], yAxisID:'yH',
+          borderColor:hum,   backgroundColor:hGrad,
+          borderWidth:1.5, pointRadius:0, pointHoverRadius:5,
+          fill:true, tension:0.4 },
+      ],
+    },
+    options:{
+      animation:false,
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ position:'top', labels:{ boxWidth:10, font:{ size:11 }, color:'#7d8590' } },
+        tooltip:{ callbacks:{ label: c =>
+          c.dataset.yAxisID === 'yT' ? ` ${c.parsed.y.toFixed(1)} °C` : ` ${c.parsed.y} %`
+        }},
+      },
+      scales:{
+        x:{ type:'time',
+            time:{ tooltipFormat:'HH:mm:ss', displayFormats:{ second:'HH:mm:ss', minute:'HH:mm', hour:'HH:mm' } },
+            ticks:{ maxTicksLimit:6, color:'#3d444d', font:{ size:10 } },
+            grid:{ color:'rgba(255,255,255,.04)' },
+            border:{ color:'rgba(255,255,255,.06)' } },
+        yT:{ position:'left',
+             title:{ display:true, text:'°C', color:'#7d8590', font:{ size:10 } },
+             ticks:{ color:'#7d8590', font:{ size:10 } },
+             grid:{ color:'rgba(255,255,255,.04)' },
+             border:{ color:'rgba(255,255,255,.06)' } },
+        yH:{ position:'right',
+             title:{ display:true, text:'%RH', color:'#7d8590', font:{ size:10 } },
+             min:0, max:100,
+             ticks:{ color:'#7d8590', font:{ size:10 } },
+             grid:{ drawOnChartArea:false } },
+      },
+    },
+  });
+}
+
+function setChartData(addr, readings, hours) {
+  ensureChart(addr);
+  const ch = charts[addr];
+  ch.data.datasets[0].data = readings.map(r => ({ x:r.ts*1000, y:r.temperature_c }));
+  ch.data.datasets[1].data = readings.map(r => ({ x:r.ts*1000, y:r.humidity_pct  }));
+  slideAxis(ch, hours);
+  ch.update('none');
+}
+
+function slideAxis(ch, hours) {
+  const now = Date.now();
+  ch.options.scales.x.max = now;
+  ch.options.scales.x.min = now - (hours || currentH) * 3600000;
+}
+
+function appendToChart(r) {
+  const ch = charts[r.address];
+  if (!ch) return;
+  ch.data.datasets[0].data.push({ x:r.ts*1000, y:r.temperature_c });
+  ch.data.datasets[1].data.push({ x:r.ts*1000, y:r.humidity_pct  });
+  const MAX = 3600;
+  if (ch.data.datasets[0].data.length > MAX) {
+    ch.data.datasets[0].data.shift();
+    ch.data.datasets[1].data.shift();
+  }
+  // Update header live values
+  const key = r.address.replace(/:/g,'');
+  const te = document.getElementById('cltemp-'+key);
+  const he = document.getElementById('clhum-'+key);
+  if (te) te.textContent = r.temperature_c.toFixed(1) + '°C';
+  if (he) he.textContent = r.humidity_pct + '% RH';
+}
+
+// ── Continuous chart render loop ──────────────────────────────
+// Runs at CHART_UPDATE_MS regardless of SSE data — keeps x-axis
+// sliding forward in real-time even during quiet periods.
+setInterval(() => {
+  Object.entries(charts).forEach(([addr, ch]) => {
+    slideAxis(ch, currentH);
+    ch.update('none');
+  });
+}, CHART_UPDATE_MS);
+
+// ── data loading ──────────────────────────────────────────────
+async function loadLatest() {
+  const data = await fetch('/api/latest').then(r=>r.json()).catch(()=>[]);
+  (data||[]).forEach(r => { lastReading[r.address]=r; upsertCard(r); ensureChart(r.address); });
+}
+
+async function loadHistory(hours) {
+  const data    = await fetch(`/api/history?hours=${hours}`).then(r=>r.json()).catch(()=>[]);
+  const grouped = {};
+  (data||[]).forEach(r => { (grouped[r.address]=grouped[r.address]||[]).push(r); });
+  const known   = new Set([...Object.keys(charts), ...Object.keys(grouped)]);
+  known.forEach(addr => setChartData(addr, grouped[addr]||[], hours));
+}
+
+// ── range buttons ─────────────────────────────────────────────
+document.getElementById('range-btns').addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  document.querySelectorAll('.range-btns button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  currentH = parseFloat(btn.dataset.h);
+  loadHistory(currentH);
+});
+
+// ── live log ──────────────────────────────────────────────────
+function appendLog(r) {
+  if (logPaused) return;
+  const body     = document.getElementById('log-body');
+  const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 40;
+  const ts       = new Date(r.time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const entry    = document.createElement('div');
+  entry.className = 'log-entry';
+  const tempColor = `color:${devColor(r.address)};opacity:.8`;
+  entry.innerHTML =
+    `<span class="log-ts">${ts}</span>`+
+    `<span class="log-addr mac-display ${devClass(r.address)}" data-addr="${r.address}">${fmtAddr(r.address)}</span>`+
+    `<span class="log-temp" style="${tempColor}">${r.temperature_c.toFixed(1)}°C</span>`+
+    `<span class="log-hum">${r.humidity_pct}%RH</span>`+
+    `<span class="log-bat">${fmtBat(r.battery_pct)}</span>`+
+    `<span class="log-rssi">${r.rssi}dBm</span>`;
+  body.appendChild(entry);
+  if (++logCount > LOG_MAX) { body.removeChild(body.firstChild); logCount--; }
+  if (atBottom) body.scrollTop = body.scrollHeight;
+}
+document.getElementById('log-pause').addEventListener('click', function(){
+  logPaused = !logPaused;
+  this.textContent = logPaused ? 'Resume' : 'Pause';
+  this.classList.toggle('active', logPaused);
+});
+document.getElementById('log-clear').addEventListener('click', ()=>{
+  document.getElementById('log-body').innerHTML=''; logCount=0;
+});
+
+// ── toast ─────────────────────────────────────────────────────
+function showToast(title, msg) {
+  const wrap = document.getElementById('toast-wrap');
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML =
+    `<div class="toast-icon">📡</div>`+
+    `<div class="toast-body"><div class="toast-title">${title}</div><div class="toast-msg">${msg}</div></div>`;
+  wrap.appendChild(el);
+  setTimeout(() => { el.style.transition='opacity .4s'; el.style.opacity='0'; setTimeout(()=>el.remove(), 420); }, 5000);
+}
+
+// ── device registry ───────────────────────────────────────────
+async function loadDevices() {
+  const devs = await fetch('/api/devices').then(r=>r.json()).catch(()=>[]);
+  (devs||[]).forEach(d => {
+    // Ensure known addresses are in addrIdx so they appear in export dropdown
+    devColor(d.address);
+    exportDeviceList();
+  });
+}
+
+// ── SSE ───────────────────────────────────────────────────────
+function connectSSE() {
+  const dot  = document.getElementById('status-dot');
+  const text = document.getElementById('status-text');
+  const es   = new EventSource('/events');
+  es.onopen  = () => { dot.className='live'; text.textContent='live'; };
+  es.onmessage = e => {
+    const r = JSON.parse(e.data);
+    lastReading[r.address] = r;
+    upsertCard(r);
+    appendToChart(r);
+    appendLog(r);
+  };
+  es.addEventListener('device_added', e => {
+    const d = JSON.parse(e.data);
+    showToast('New sensor detected', fmtAddr(d.address));
+    devColor(d.address);
+    exportDeviceList();
+    loadLatest();
+  });
+  es.onerror = () => {
+    dot.className='error'; text.textContent='reconnecting…';
+    es.close(); setTimeout(connectSSE, 3000);
+  };
+}
+
+// ── export ────────────────────────────────────────────────────
+(function initExport() {
+  // Default range: last 7 days to now
+  const now  = new Date();
+  const week = new Date(now - 7 * 86400e3);
+  const toLocal = d => new Date(d - d.getTimezoneOffset()*60000).toISOString().slice(0,16);
+  document.getElementById('exp-from').value = toLocal(week);
+  document.getElementById('exp-to').value   = toLocal(now);
+})();
+
+function exportParams() {
+  const fromVal = document.getElementById('exp-from').value;
+  const toVal   = document.getElementById('exp-to').value;
+  const addr    = document.getElementById('exp-device').value;
+  const fmt     = document.getElementById('exp-format').value;
+  const p       = new URLSearchParams();
+  if (fromVal) p.set('from', Math.floor(new Date(fromVal).getTime() / 1000));
+  if (toVal)   p.set('to',   Math.floor(new Date(toVal).getTime()   / 1000));
+  if (addr)    p.set('address', addr);
+  p.set('format', fmt);
+  return p;
+}
+
+function exportDeviceList() {
+  const sel = document.getElementById('exp-device');
+  const existing = new Set([...sel.options].map(o=>o.value).filter(v=>v));
+  Object.keys(addrIdx).forEach(addr => {
+    if (!existing.has(addr)) {
+      const opt = document.createElement('option');
+      opt.value = addr;
+      opt.textContent = fmtAddr(addr);
+      opt.dataset.addr = addr;
+      sel.appendChild(opt);
+    }
+  });
+}
+
+async function updateExportCount() {
+  const p = exportParams();
+  p.delete('format');
+  const data = await fetch('/api/export/count?' + p).then(r=>r.json()).catch(()=>null);
+  const el = document.getElementById('export-count');
+  if (data) el.textContent = data.count.toLocaleString() + ' rows';
+  else       el.textContent = '';
+}
+
+async function previewExport() {
+  exportDeviceList();
+  const p = exportParams();
+  p.set('format', 'json');
+  document.getElementById('export-preview-wrap').style.display = '';
+  const preview = document.getElementById('export-preview');
+  preview.innerHTML = '<div class="preview-status">Loading…</div>';
+  await updateExportCount();
+
+  const data = await fetch('/api/export?' + p).then(r=>r.json()).catch(()=>null);
+  if (!data || data.length === 0) {
+    preview.innerHTML = '<div class="preview-status">No data for selected range.</div>';
+    return;
+  }
+  const shown = data.slice(0, 200);
+  const more  = data.length > 200 ? `<tr><td colspan="7" class="preview-status">… ${(data.length-200).toLocaleString()} more rows — use Download to get all</td></tr>` : '';
+  preview.innerHTML =
+    `<table><thead><tr>
+      <th>Time (UTC)</th><th>Address</th><th>Temp °C</th><th>Humidity %</th><th>Battery %</th><th>RSSI</th><th>Unix TS</th>
+    </tr></thead><tbody>` +
+    shown.map(r =>
+      `<tr>
+        <td>${r.time}</td>
+        <td class="addr">${fmtAddr(r.address)}</td>
+        <td class="temp">${r.temperature_c.toFixed(1)}</td>
+        <td class="hum">${r.humidity_pct}</td>
+        <td>${r.battery_pct >= 0 ? r.battery_pct+'%' : 'n/a'}</td>
+        <td>${r.rssi}</td>
+        <td>${r.ts}</td>
+      </tr>`
+    ).join('') + more + '</tbody></table>';
+}
+
+function downloadExport() {
+  exportDeviceList();
+  const p = exportParams();
+  window.location.href = '/api/export?' + p;
+}
+
+// Update count whenever inputs change
+['exp-from','exp-to','exp-device'].forEach(id => {
+  document.getElementById(id).addEventListener('change', updateExportCount);
+});
+
+// Initial count
+updateExportCount();
+
+// ── alerts ────────────────────────────────────────────────────
+let alertRulesLoaded = false;
+
+function fmtDuration(secs) {
+  if (secs < 60)   return Math.round(secs) + 's';
+  if (secs < 3600) return Math.round(secs/60) + 'm';
+  return (secs/3600).toFixed(1) + 'h';
+}
+
+async function loadAlerts() {
+  if (!alertRulesLoaded) {
+    alertRulesLoaded = true;
+    const rules = await fetch('/api/alerts/rules').then(r=>r.json()).catch(()=>null);
+    if (rules === null) {
+      document.getElementById('alerts-empty-msg').style.display = 'none';
+      document.getElementById('alerts-no-config').style.display = '';
+      return;
+    }
+  }
+
+  const statuses = await fetch('/api/alerts').then(r=>r.json()).catch(()=>[]);
+  const list = document.getElementById('alerts-list');
+
+  if (!statuses || statuses.length === 0) {
+    if (!list.querySelector('.alert-row')) {
+      list.innerHTML = '<div id="alerts-empty-msg" style="font-size:13px;color:var(--muted);padding:12px 0">No alert activity yet — watching…</div>';
+    }
+    document.getElementById('alert-badge').style.display = 'none';
+    return;
+  }
+
+  const activeCount = statuses.filter(s=>s.active).length;
+  const badge = document.getElementById('alert-badge');
+  if (activeCount > 0) {
+    badge.textContent = activeCount + ' active';
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+
+  statuses.forEach(s => {
+    const rowKey = (s.rule_name + ':' + s.device).replace(/[^a-zA-Z0-9]/g,'_');
+    let row = document.getElementById('ar-'+rowKey);
+    if (!row) {
+      // Remove the "waiting" placeholder once we have real rows
+      const placeholder = list.querySelector('#alerts-empty-msg');
+      if (placeholder) placeholder.remove();
+      row = document.createElement('div');
+      row.id = 'ar-'+rowKey;
+      row.className = 'alert-row';
+      list.appendChild(row);
+    }
+
+    const rowClass  = s.active ? 'is-active' : (s.cond_for_secs > 0 ? 'is-pending' : '');
+    const stateText = s.active
+      ? 'ACTIVE ' + fmtDuration(s.cond_for_secs)
+      : s.cond_for_secs > 0
+        ? 'Pending ' + fmtDuration(s.cond_for_secs)
+        : 'OK';
+    const stateClass = s.active ? 'active' : s.cond_for_secs > 0 ? 'pending' : 'ok';
+    const firedText  = s.fired_at ? 'Last alert ' + fmtAgo(s.fired_at) : '—';
+    const metricLabel = s.metric === 'temperature_c' ? 'Temp' : 'Humidity';
+    const unit        = s.metric === 'temperature_c' ? '°C' : '%';
+    const condLabel   = s.condition === 'above' ? '>' : '<';
+    const deviceLabel = s.device === '*' ? 'All devices' : fmtAddr(s.device);
+
+    row.className = 'alert-row ' + rowClass;
+    row.innerHTML =
+      `<div class="alert-status-dot"></div>`+
+      `<div class="alert-name">${s.rule_name}</div>`+
+      `<div class="alert-device mac-display" data-addr="${s.device}">${deviceLabel}</div>`+
+      `<div class="alert-rule">${metricLabel} <b>${condLabel} ${s.threshold}${unit}</b> for ${s.for || '0s'}</div>`+
+      `<div class="alert-state ${stateClass}">${stateText}</div>`+
+      `<div class="alert-fired">${firedText}</div>`;
+  });
+
+  // Remove rows whose key no longer exists in statuses
+  list.querySelectorAll('.alert-row').forEach(row => {
+    const k = row.id.replace('ar-','');
+    if (!statuses.some(s => (s.rule_name+':'+s.device).replace(/[^a-zA-Z0-9]/g,'_') === k))
+      row.remove();
+  });
+}
+
+setInterval(loadAlerts, 5000);
+
+// ── boot ──────────────────────────────────────────────────────
+(async()=>{
+  await loadDevices();
+  await loadLatest();
+  await loadHistory(currentH);
+  connectSSE();
+  await loadAlerts();
+  setInterval(loadDevices, 60000);
+})();
+</script>
+</body>
+</html>
