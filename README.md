@@ -10,16 +10,15 @@ No pairing. No official app. No cloud.
 
 ## Platform Support
 
-| Architecture | Binary | Confirmed working on |
+| Architecture | Binary | Suitable for |
 |---|---|---|
-| **x86-64** | `switchbot-temp` | Linux PC, home server, NUC, VM |
-| **ARMv7l** | `switchbot-temp-armv7l` | Raspberry Pi 2/3/4, OSMC, LibreELEC, Armbian |
+| **x86-64** | `linux-amd64` | Linux PC, home server, NUC, VM |
+| **ARM64** | `linux-arm64` | Raspberry Pi 4/5 (64-bit OS), Orange Pi, Rock Pi, Odroid N2, most modern ARM SBCs |
+| **ARMv7l** | `linux-armv7l` | Raspberry Pi 2/3/4 (32-bit OS), OSMC, LibreELEC, Armbian |
+| **ARMv6l** | `linux-armv6l` | Raspberry Pi 1, Zero, Zero W |
 
 Fully static binary — no runtime dependencies, no CGO, no shared libraries.
 If it runs Linux and has a Bluetooth adapter, it will work.
-
-> **Note:** ARMv6l (Raspberry Pi 1 / Zero) is not currently provided as a
-> pre-built binary but can be compiled from source with `GOARCH=arm GOARM=6`.
 
 ---
 
@@ -45,7 +44,9 @@ Grab the latest release for your architecture from the
 | File | For |
 |---|---|
 | `switchbot-temp-<ver>-linux-amd64.tar.gz` | PC / server (x86-64) |
-| `switchbot-temp-<ver>-linux-armv7l.tar.gz` | Raspberry Pi, OSMC, Armbian (ARMv7l) |
+| `switchbot-temp-<ver>-linux-arm64.tar.gz` | Raspberry Pi 4/5 64-bit, modern ARM SBCs |
+| `switchbot-temp-<ver>-linux-armv7l.tar.gz` | Raspberry Pi 2/3/4 32-bit, OSMC, Armbian |
+| `switchbot-temp-<ver>-linux-armv6l.tar.gz` | Raspberry Pi 1, Zero, Zero W |
 
 ```bash
 tar xzf switchbot-temp-<ver>-linux-<arch>.tar.gz
