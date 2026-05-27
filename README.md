@@ -46,7 +46,6 @@ Grab the latest release for your architecture from the
 |---|---|
 | `switchbot-temp-<ver>-linux-amd64.tar.gz` | PC / server (x86-64) |
 | `switchbot-temp-<ver>-linux-armv7l.tar.gz` | Raspberry Pi, OSMC, Armbian (ARMv7l) |
-| `switchbot-temp-<ver>.tar.gz` | Full bundle — both architectures |
 
 ```bash
 tar xzf switchbot-temp-<ver>-linux-<arch>.tar.gz

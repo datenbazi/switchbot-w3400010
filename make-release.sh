@@ -29,7 +29,7 @@ echo "==> Staging release into _release/${PKG_NAME}/"
 rm -rf "$STAGE_DIR"
 mkdir -p "$STAGE_DIR/ui"
 
-# Binaries
+# Binaries — kept separate, not bundled together
 cp switchbot-temp "$STAGE_DIR/"
 cp switchbot-temp-armv7l "$STAGE_DIR/"
 
@@ -88,14 +88,11 @@ echo "  sudo journalctl -fu ${SERVICE}"
 INSTALL
 chmod +x "$STAGE_DIR/install.sh"
 
-# Tarballs — one fat bundle (both arches) + arch-specific slices
+# Tarballs — one per architecture
 echo "==> Packing tarballs..."
 cd "${PROJ_DIR}/_release"
 
-# Full bundle
-tar czf "${PKG_NAME}.tar.gz" "${PKG_NAME}/"
-
-# amd64-only slice
+# amd64
 tar czf "${PKG_NAME}-linux-amd64.tar.gz" \
     --transform "s|${PKG_NAME}/||" \
     "${PKG_NAME}/switchbot-temp" \
@@ -104,7 +101,7 @@ tar czf "${PKG_NAME}-linux-amd64.tar.gz" \
     "${PKG_NAME}/switchbot-temp.service" \
     "${PKG_NAME}/install.sh"
 
-# armv7l-only slice
+# armv7l
 tar czf "${PKG_NAME}-linux-armv7l.tar.gz" \
     --transform "s|${PKG_NAME}/switchbot-temp-armv7l|${PKG_NAME}/switchbot-temp|" \
     --transform "s|${PKG_NAME}/||" \
@@ -115,13 +112,10 @@ tar czf "${PKG_NAME}-linux-armv7l.tar.gz" \
     "${PKG_NAME}/install.sh"
 
 echo ""
-for f in "${PKG_NAME}.tar.gz" "${PKG_NAME}-linux-amd64.tar.gz" "${PKG_NAME}-linux-armv7l.tar.gz"; do
+for f in "${PKG_NAME}-linux-amd64.tar.gz" "${PKG_NAME}-linux-armv7l.tar.gz"; do
     echo "  $(du -sh "$f" | cut -f1)  $f"
     echo "         sha256: $(sha256sum "$f" | cut -d' ' -f1)"
 done
-echo ""
-echo "Contents (full bundle):"
-tar tzf "${PKG_NAME}.tar.gz"
 
 # ── GitHub release ────────────────────────────────────────────
 if [[ "$PUBLISH" -eq 1 ]]; then
@@ -133,7 +127,6 @@ if [[ "$PUBLISH" -eq 1 ]]; then
 
   echo "==> Creating GitHub release ${VERSION}..."
   gh release create "${VERSION}" \
-    "_release/${PKG_NAME}.tar.gz" \
     "_release/${PKG_NAME}-linux-amd64.tar.gz" \
     "_release/${PKG_NAME}-linux-armv7l.tar.gz" \
     --title "${VERSION}" \
